@@ -17,12 +17,45 @@
 
 #include <linux/kthread.h>  // creating the thread
 #include <linux/delay.h>
+#include <linux/timer.h>    //timer
+#include <linux/jiffies.h>  //timer - jiffies
+
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+#include <linux/sched/signal.h>
+#endif
+
+
+/* define
+TASKLET_DYNAMICALLY
+TASKLET_STATICALLY
+
+SIMPLE_SPIN_LOCK
+SIMPLE_INTRRUPT
+
+SIMPLE_THREAD
+THREAD_DYNAMICALLY
+THREAD_STATICALLY
+
+SIMPLE_TIMER
+FEATURED_TIMER
+RELAX_TIMER
+SCHEDULE_TIMER
+*/
+
+//#define SIMPLE_SPIN_LOCK
+//#define SIMPLE_THREAD
+//#define SIMPLE_TIMER
+#define FEATURED_TIMER
+#define SCHEDULE_TIMER
+
+#define TIMEOUT 50  //ms
 
 #define mem_size 1024
 
-#define SIMPLE_SPIN_LOCK
-#define SIMPLE_THREAD
 
+//timer
+static struct timer_list  chr_timer;
 
 
 /* IOCTL  */
@@ -32,6 +65,7 @@
 #define RD_DATA _IOR('a', 'b', int32_t*)
 
 int32_t val = 0;
+
 
 //prototypes
 static long chr_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
@@ -66,7 +100,6 @@ static irqreturn_t irq_handler(int irq, void *dev_id){
 /* end of interrupt */
 #endif
 
-#ifdef SIMPLE_SPIN_LOCK
 /* spin lock */
 static struct task_struct *chr_thread1;
 static struct task_struct *chr_thread2;
@@ -79,16 +112,16 @@ DEFINE_SPINLOCK(chr_spinlock);
 
 /* end of spin lock ... */
 
-#endif
-
-
-/* thread ..... */
-#ifdef SIMPLE_THREAD
 static struct task_struct *chr_thread;
 unsigned long chr_spinlock_variable = 0;
 //prototype
 int thrd_func1 (void *p);
 int thrd_func2 (void *p);
+
+/* thread ..... */
+#ifdef SIMPLE_THREAD
+
+
 
 //body functions
 int thrd_func1 (void *p){
@@ -130,6 +163,60 @@ return 0;
 
 /* end of thread .... */
 
+
+
+
+#ifdef FEATURED_TIMER
+uint32_t time_count =0;
+//timer callback function which is called when the time expired
+void timer_callback(struct timer_list *timer){
+	printk(KERN_INFO " the timer callback function[%d]\n",time_count);
+	time_count++;
+	//reanable the timer which will make this as periodic timer
+	mod_timer(&chr_timer,jiffies + msecs_to_jiffies(TIMEOUT));
+}
+
+#endif 
+
+#ifdef SCHEDULE_TIMER
+static struct task_struct *thread_wait;
+int delay = HZ;
+static int thread_wait_func(void *wait){
+	printk(KERN_INFO "wait thread ... \n");
+	unsigned long j1, j2;
+	
+	allow_signal(SIGKILL);
+	while(!kthread_should_stop()){
+	j1=jiffies; //this is counter when the function starts
+	j2=j1+delay;
+	
+	while(time_before(jiffies,j2))
+		#ifdef RELAX_TIMER
+
+		/* The cpu_relax() is generally a function 
+		which uses the hlt instruction on the x86 architecture to 
+		set the processor in a kind of sleeping state 
+		where energy consumption is reduced and execution stopped. 
+		It wakes up anytime an hardware interrupt occurs.*/
+		cpu_relax();
+		#endif 
+		
+		#ifdef SCHEDULE_TIMER
+		schedule();
+		#endif
+	
+	j2=jiffies;
+	printk(KERN_INFO "jiffies starts at %lu \t and ends at %lu ...\n",j1,j2);
+	if(signal_pending(current))
+		break;
+	}
+	
+	printk(KERN_INFO " Thread is stopped ... \n");
+	thread_wait=NULL;
+	do_exit(0);
+	
+} 
+#endif
 
 
 
@@ -247,7 +334,7 @@ static int __init chr_driver_init(void){
             goto r_device; // it will destroy the class
         
 	} 	
-#if 0
+#if THREAD_DYNAMICALLY
 	// dynamically thread
 	chr_thread = kthread_run(thrd_func1, NULL, "my_device");
 	if (chr_thread){
@@ -260,7 +347,20 @@ static int __init chr_driver_init(void){
 #endif
 #endif
 /* end of thread ...*/
-	
+
+#ifdef SIMPLE_TIMER
+//setup your timer to call timer callback functiontion
+timer_setup(&chr_timer,timer_callback,0);
+
+//configue the timeout
+mod_timer(&chr_timer, jiffies + msecs_to_jiffies(TIMEOUT));
+
+#endif	
+
+#ifdef SCHEDULE_TIMER
+thread_wait=kthread_run(thread_wait_func,NULL,"mywaitthread");
+#endif
+
 	printk(KERN_INFO" Device is created properly, device driver insert ... done");
 	printk(KERN_INFO "init.1 \n");
 	return 0;
@@ -281,6 +381,7 @@ static int __init chr_driver_init(void){
 #ifdef SIMPLE_INTRRUPT				
 	irq:
 				free_irq(IRQ_NO, (void *)(irq_handler));
+				return -1;
 #endif
  }
  
@@ -299,6 +400,15 @@ static int __init chr_driver_init(void){
 	kthread_stop(chr_thread1);
 	kthread_stop(chr_thread2);
 #endif
+
+#ifdef SIMPLE_TIMER
+del_timer(&chr_timer);
+#endif
+
+#ifdef SCHEDULE_TIMER
+kthread_stop(thread_wait);
+#endif
+ 
 	 printk(KERN_INFO "Devie driver is removed successfully");
 	 return 0;
  }
