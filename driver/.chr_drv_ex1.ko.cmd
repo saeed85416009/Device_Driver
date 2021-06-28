@@ -1,1 +1,0 @@
-cmd_/root/embedded/test/device-driver/driver/chr_drv_ex1.ko := ld -r -m elf_x86_64  -z max-page-size=0x200000  --build-id  -T ./scripts/module-common.lds -o /root/embedded/test/device-driver/driver/chr_drv_ex1.ko /root/embedded/test/device-driver/driver/chr_drv_ex1.o /root/embedded/test/device-driver/driver/chr_drv_ex1.mod.o;  true

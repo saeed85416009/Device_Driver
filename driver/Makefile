@@ -1,12 +1,17 @@
+obj-m := pcd.o
 
-obj-m += chr_drv_ex1.o
-
-PWD := $(shell pwd)
+ARCH=arm
+CROSS_COMPILE=arm-linux-gnu-
+#set KERN_DIR to linux source location 
+KERN_DIR = /root/embedded/executing/kernel/bbb-linux-4.14/  
+HOST_KERN_DIR = /lib/modules/`uname -r`/build/
 
 all:
-	make -C /lib/modules/$(shell uname -r)/build/ M=$(PWD) modules
+	make ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERN_DIR) M=$(PWD) modules
 clean:
-	make -C /lib/modules/$(shell uname -r)/build/ M=$(PWD) clean
-
-install:
-	$(MAKE) -C /lib/modules/$(shell uname -r)/build/ M=$(PWD) modules_install
+	make -C $(HOST_KERN_DIR) M=$(PWD) clean
+	make ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERN_DIR) M=$(PWD) clean
+help:
+	make ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERN_DIR) M=$(PWD) help
+host:
+	make -C $(HOST_KERN_DIR) M=$(PWD) modules
