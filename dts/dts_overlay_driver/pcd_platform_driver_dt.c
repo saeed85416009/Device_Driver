@@ -483,5 +483,5 @@ module_exit(pcd_platform_driver_cleanup);
 //module_platform_driver(pcd_platform_driver);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Kiran Nayak");
+MODULE_AUTHOR("saeed");
 MODULE_DESCRIPTION("A pseudo character platform driver which handles n platform pcdevs");
