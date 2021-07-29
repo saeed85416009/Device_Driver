@@ -1,0 +1,2 @@
+/root/embedded/beaglebone/new/ioctl/driver/pcd_ioctl.o
+
